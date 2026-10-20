@@ -13,11 +13,14 @@ Gitea Plugin for Jetbrains IDEs.
 * TaskManagement
   * Track time
   * Update state
+* Issues tool window
+  * Filter by state, text, label, milestone, assignee and author
+  * Read description and comments, comment, close and reopen
+  * Create issues, start working on an issue (branch + task)
 * Protected branches loaded from Gitea
 
 # New Feature Coming Soon:
 
-* Issue management
 * PR Management & Review
 
 <!-- Plugin description end -->

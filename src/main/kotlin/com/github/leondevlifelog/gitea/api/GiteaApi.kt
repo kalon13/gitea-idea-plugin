@@ -42,6 +42,10 @@ class GiteaApi(baseUrl: String, token: String) {
         return retrofit.create(RepositoryApi::class.java)
     }
 
+    fun getMarkdownApi(): GiteaMarkdownApi {
+        return retrofit.create(GiteaMarkdownApi::class.java)
+    }
+
     companion object {
         /**
          * Shared by all instances, so they reuse the same connection pool and dispatcher.
