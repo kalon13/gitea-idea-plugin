@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- Protected branch rules loaded from Gitea after fetch
+- Setting for the ssh user of clone urls typed by hand
+
+### Fixed
+
+- Task server: token sent as header, findTask, "assigned to me" filter, pull requests no longer listed as issues
+- Connection timeout setting was ignored
+- Clone uses the ssh/http urls provided by the server
+
 ## [0.9.0] - 2026-08-02
 
 - Supports new versions of JetBrains IDEs.

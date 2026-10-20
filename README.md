@@ -13,6 +13,7 @@ Gitea Plugin for Jetbrains IDEs.
 * TaskManagement
   * Track time
   * Update state
+* Protected branches loaded from Gitea
 
 # New Feature Coming Soon:
 
