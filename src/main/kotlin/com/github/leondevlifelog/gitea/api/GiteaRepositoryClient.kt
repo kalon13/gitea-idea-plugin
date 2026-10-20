@@ -118,6 +118,37 @@ class GiteaRepositoryClient(private val api: GiteaApi, path: GiteaRepositoryPath
         return call(api.getRepoApi().repoEditPullRequest(owner, repo, number, option))
     }
 
+    /**
+     * @param body may be empty to approve, mandatory for the other events
+     */
+    suspend fun createReview(pr: PullRequest, event: CreatePullReviewOptions.EventEnum, body: String): PullReview {
+        val option = CreatePullReviewOptions().apply {
+            this.event = event
+            this.body = body
+            // the review applies to the commit the user has seen
+            commitId = pr.head?.sha
+        }
+        return call(api.getRepoApi().repoCreatePullReview(option, owner, repo, pr.number))
+    }
+
+    /**
+     * Merges [pr] only if its head is still the one shown to the user (head_commit_id), otherwise Gitea refuses.
+     * Empty title and message let Gitea use its defaults.
+     */
+    suspend fun merge(pr: PullRequest, style: MergePullRequestOption.DoEnum, title: String, message: String, deleteBranch: Boolean) {
+        val option = MergePullRequestOption().apply {
+            `do` = style
+            mergeTitleField = title.takeIf { it.isNotBlank() }
+            mergeMessageField = message.takeIf { it.isNotBlank() }
+            headCommitId = pr.head?.sha
+            setDeleteBranchAfterMerge(deleteBranch)
+        }
+        callWithoutBody(api.getRepoApi().repoMergePullRequest(owner, repo, pr.number, option))
+    }
+
+    /** Repository settings, e.g. the allowed merge styles. */
+    suspend fun getRepository(): Repository = call(api.getRepoApi().repoGet(owner, repo))
+
     /** Pages of [PAGE_LIMIT] items until a short page, at most [MAX_PAGES]. */
     private suspend fun <T> fetchAllPages(request: (Int) -> Call<List<T>>): List<T> {
         val result = mutableListOf<T>()
@@ -144,6 +175,13 @@ class GiteaRepositoryClient(private val api: GiteaApi, path: GiteaRepositoryPath
             throw GiteaApiException(errorMessage(response), response.code())
         }
         return response.body() ?: throw GiteaApiException("Empty response (HTTP ${response.code()})", response.code())
+    }
+
+    private suspend fun callWithoutBody(call: Call<Void>) {
+        val response = call.awaitResponse()
+        if (!response.isSuccessful) {
+            throw GiteaApiException(errorMessage(response), response.code())
+        }
     }
 
     private suspend fun errorMessage(response: Response<*>): String {

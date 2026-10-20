@@ -59,7 +59,20 @@ object GiteaTestServer {
         return execute(api().getRepoApi().repoCreatePullRequest(path.owner, path.repository, option))
     }
 
-    fun <T> execute(call: Call<T>): T {
+    /** Adds a commit to [branch], creating a new file. */
+    fun addCommit(branch: String) {
+        val file = CreateFileOptions().apply {
+            this.branch = branch
+            message = "Another commit"
+            content = Base64.getEncoder().encodeToString("more\n".toByteArray())
+        }
+        execute(api().getRepoApi().repoCreateFile(file, path.owner, path.repository, "tests/$branch-${System.nanoTime()}.txt"))
+    }
+
+    fun branchExists(branch: String): Boolean =
+        api().getRepoApi().repoGetBranch(path.owner, path.repository, branch).execute().isSuccessful
+
+        fun <T> execute(call: Call<T>): T {
         val response = call.execute()
         check(response.isSuccessful) { "HTTP ${response.code()}: ${response.errorBody()?.string()}" }
         return response.body()!!

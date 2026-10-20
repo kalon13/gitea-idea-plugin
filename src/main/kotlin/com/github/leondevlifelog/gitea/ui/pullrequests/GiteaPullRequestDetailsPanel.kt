@@ -38,7 +38,6 @@ import java.awt.FlowLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.JButton
-import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.ListCellRenderer
 import javax.swing.event.DocumentEvent
@@ -80,6 +79,8 @@ class GiteaPullRequestDetailsPanel(
     }
     private val commentButton = JButton(GiteaBundle.message("issue.comment.button")).apply { addActionListener { comment() } }
     private val stateButton = JButton().apply { addActionListener { toggleState() } }
+    private val reviewButton = JButton(GiteaBundle.message("pull.review.button")).apply { addActionListener { review() } }
+    private val mergeButton = JButton(GiteaBundle.message("pull.merge.button.open")).apply { addActionListener { merge() } }
     private val checkoutButton = JButton(GiteaBundle.message("pull.checkout.button")).apply {
         addActionListener { checkout() }
     }
@@ -107,6 +108,8 @@ class GiteaPullRequestDetailsPanel(
     init {
         add(emptyPanel, BorderLayout.CENTER)
         buttons.add(commentButton)
+        buttons.add(reviewButton)
+        buttons.add(mergeButton)
         buttons.add(stateButton)
         buttons.add(checkoutButton)
         buttons.add(browserButton)
@@ -117,19 +120,6 @@ class GiteaPullRequestDetailsPanel(
         })
         DumbAwareAction.create { comment() }.registerCustomShortcutSet(CommonShortcuts.getCtrlEnter(), commentArea)
     }
-
-    /** Adds an action button before "Open in Browser". */
-    fun addButton(button: JButton) {
-        buttons.add(button, buttons.componentCount - 1)
-    }
-
-    /** Adds a tab after the built-in ones. */
-    fun addTab(title: String, component: JComponent) {
-        tabs.addTab(title, component)
-    }
-
-    val selectedPullRequest: PullRequest? get() = pullRequest
-    val isBusy: Boolean get() = busy
 
     fun showPullRequest(pullRequest: PullRequest?) {
         if (pullRequest?.number != this.pullRequest?.number) {
@@ -248,8 +238,31 @@ class GiteaPullRequestDetailsPanel(
         }
     }
 
+    private fun review() {
+        val current = pullRequest ?: return
+        if (busy) return
+        runAction(GiteaBundle.message("pull.review.failed")) {
+            val login = optional { client.getCurrentUser().login }
+            val dialog = GiteaReviewDialog(project, current.number, login != null && current.user?.login == login)
+            if (!dialog.showAndGet()) return@runAction
+            client.createReview(current, dialog.event, dialog.text)
+            refresh(current.number)
+        }
+    }
+
+    private fun merge() {
+        val current = pullRequest ?: return
+        if (busy) return
+        runAction(GiteaBundle.message("pull.merge.failed")) {
+            val dialog = GiteaMergeDialog(project, current, client.getRepository())
+            if (!dialog.showAndGet()) return@runAction
+            client.merge(current, dialog.selectedStyle, dialog.commitTitle, dialog.commitMessage, dialog.deleteBranchAfterMerge)
+            refresh(current.number)
+        }
+    }
+
     /** Reloads the pull request from the server and shows it, in the list too. */
-    suspend fun refresh(number: Long) {
+    private suspend fun refresh(number: Long) {
         val updated = client.getPullRequest(number)
         onPullRequestUpdated(updated)
         showPullRequest(updated)
@@ -258,7 +271,7 @@ class GiteaPullRequestDetailsPanel(
     /**
      * Runs a server action with the buttons disabled; failures are notified with [errorTitle].
      */
-    fun runAction(errorTitle: String, action: suspend () -> Unit) {
+    private fun runAction(errorTitle: String, action: suspend () -> Unit) {
         busy = true
         updateButtons()
         scope.launch {
@@ -275,14 +288,7 @@ class GiteaPullRequestDetailsPanel(
         }
     }
 
-    private val buttonUpdaters = mutableListOf<(PullRequest?) -> Unit>()
-
-    /** Registers the enabling logic of a button added with [addButton]. */
-    fun onUpdateButtons(updater: (PullRequest?) -> Unit) {
-        buttonUpdaters.add(updater)
-    }
-
-    fun updateButtons() {
+    private fun updateButtons() {
         val current = pullRequest
         val state = current?.let { GiteaPullRequestState.of(it) }
         val hasComment = commentArea.text.isNotBlank()
@@ -294,9 +300,12 @@ class GiteaPullRequestDetailsPanel(
                 GiteaBundle.message(if (hasComment) "pull.reopen.comment.button" else "pull.reopen.button")
             else -> GiteaBundle.message(if (hasComment) "pull.close.comment.button" else "pull.close.button")
         }
+        val open = state == GiteaPullRequestState.OPEN || state == GiteaPullRequestState.DRAFT
+        reviewButton.isEnabled = open && !busy
+        // Gitea refuses to merge drafts and conflicting pull requests
+        mergeButton.isEnabled = state == GiteaPullRequestState.OPEN && current?.isMergeable == true && !busy
         checkoutButton.isEnabled = current != null && !busy
         browserButton.isEnabled = current?.htmlUrl != null
-        buttonUpdaters.forEach { it(current) }
     }
 
     private class CommitRenderer : ListCellRenderer<Commit> {

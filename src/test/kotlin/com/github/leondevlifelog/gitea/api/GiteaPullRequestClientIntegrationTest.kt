@@ -6,10 +6,12 @@
 package com.github.leondevlifelog.gitea.api
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.gitnex.tea4j.v2.models.CombinedStatus
 import org.gitnex.tea4j.v2.models.CreatePullReviewOptions
 import org.gitnex.tea4j.v2.models.CreateStatusOption
+import org.gitnex.tea4j.v2.models.MergePullRequestOption
 import org.gitnex.tea4j.v2.models.PullRequest
 import org.gitnex.tea4j.v2.models.PullReview
 
@@ -58,6 +60,90 @@ class GiteaPullRequestClientIntegrationTest : BasePlatformTestCase() {
         } finally {
             client.setPullRequestState(created.number, true)
         }
+    }
+
+    fun testReviewRules() = runBlocking {
+        if (!GiteaTestServer.isConfigured) return@runBlocking
+        val otherToken = GiteaTestServer.otherToken ?: return@runBlocking
+        val client = GiteaTestServer.client()
+        val other = GiteaTestServer.client(otherToken)
+        val created = GiteaTestServer.createPullRequest("review rules ${System.currentTimeMillis()}")
+        try {
+            // the rules enforced by GiteaReviewDialog
+            assertEquals(422, assertApiError { client.createReview(created, CreatePullReviewOptions.EventEnum.APPROVED, "") })
+            assertEquals(422, assertApiError { other.createReview(created, CreatePullReviewOptions.EventEnum.COMMENT, "") })
+            client.createReview(created, CreatePullReviewOptions.EventEnum.COMMENT, "own comment")
+            other.createReview(created, CreatePullReviewOptions.EventEnum.REQUEST_CHANGES, "please fix")
+            other.createReview(created, CreatePullReviewOptions.EventEnum.APPROVED, "")
+
+            val states = client.listReviews(created.number).map { it.user.login to it.state }
+            assertTrue(states.toString(), states.containsAll(listOf(
+                "tester" to PullReview.StateEnum.COMMENT,
+                "other" to PullReview.StateEnum.REQUEST_CHANGES,
+                "other" to PullReview.StateEnum.APPROVED,
+            )))
+        } finally {
+            client.setPullRequestState(created.number, true)
+        }
+    }
+
+    fun testSquashMergeDeletingBranch() = runBlocking {
+        if (!GiteaTestServer.isConfigured) return@runBlocking
+        val client = GiteaTestServer.client()
+        val created = GiteaTestServer.createPullRequest("squash ${System.currentTimeMillis()}")
+        waitMergeable(client, created.number)
+        client.merge(created, MergePullRequestOption.DoEnum.SQUASH, "Squashed title", "Squashed body", true)
+
+        val merged = client.getPullRequest(created.number)
+        assertTrue(merged.isMerged)
+        assertFalse(GiteaTestServer.branchExists(created.head.ref))
+        val message = GiteaTestServer.execute(
+            GiteaTestServer.api().getRepoApi().repoGetSingleCommit(
+                GiteaTestServer.path.owner, GiteaTestServer.path.repository, merged.mergeCommitSha, false, false, false
+            )
+        ).commit.message
+        assertEquals("Squashed title\n\nSquashed body\n", message)
+    }
+
+    fun testMergeRefusedWhenHeadChanged() = runBlocking {
+        if (!GiteaTestServer.isConfigured) return@runBlocking
+        val client = GiteaTestServer.client()
+        val created = GiteaTestServer.createPullRequest("moving head ${System.currentTimeMillis()}")
+        try {
+            GiteaTestServer.addCommit(created.head.ref)
+            waitMergeable(client, created.number)
+            // created still has the old head: the user did not see the new commit
+            assertApiError { client.merge(created, MergePullRequestOption.DoEnum.MERGE, "", "", false) }
+            assertFalse(client.getPullRequest(created.number).isMerged)
+        } finally {
+            client.setPullRequestState(created.number, true)
+        }
+    }
+
+    fun testRepositorySettings() = runBlocking {
+        if (!GiteaTestServer.isConfigured) return@runBlocking
+        val repository = GiteaTestServer.client().getRepository()
+        assertEquals(GiteaTestServer.defaultBranch, repository.defaultBranch)
+        assertNotNull(repository.defaultMergeStyle)
+    }
+
+    /** Gitea checks the mergeability in background after a push. */
+    private suspend fun waitMergeable(client: GiteaRepositoryClient, number: Long) {
+        for (attempt in 1..30) {
+            if (client.getPullRequest(number).isMergeable == true) return
+            delay(300)
+        }
+        fail("pull request #$number not mergeable")
+    }
+
+    private suspend fun assertApiError(action: suspend () -> Unit): Int {
+        try {
+            action()
+        } catch (e: GiteaApiException) {
+            return e.statusCode
+        }
+        fail("expected GiteaApiException")
+        return 0
     }
 
     fun testReviewsOfAnotherUser() = runBlocking {
