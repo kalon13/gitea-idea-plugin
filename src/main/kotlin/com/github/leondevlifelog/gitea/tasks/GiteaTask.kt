@@ -22,4 +22,12 @@ class GiteaTask(private val giteaRepository: GiteaRepository, private val issue:
     override fun getIssueUrl(): String? {
         return issue.htmlUrl
     }
+
+    override fun getUpdated(): Date? {
+        return issue.updatedAt
+    }
+
+    override fun isClosed(): Boolean {
+        return issue.state == Issue.StateEnum.CLOSED
+    }
 }

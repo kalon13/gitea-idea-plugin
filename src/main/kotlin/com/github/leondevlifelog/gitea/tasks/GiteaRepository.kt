@@ -13,10 +13,10 @@ import com.intellij.tasks.CustomTaskState
 import com.intellij.tasks.LocalTask
 import com.intellij.tasks.Task
 import com.intellij.tasks.TaskRepositoryType
-import com.intellij.tasks.gitlab.GitlabRepository
 import com.intellij.tasks.impl.BaseRepository
 import com.intellij.tasks.impl.httpclient.NewBaseRepositoryImpl
 import com.intellij.util.xmlb.annotations.Tag
+import org.apache.http.HttpRequestInterceptor
 import org.apache.http.client.methods.HttpGet
 import org.apache.http.client.methods.HttpPatch
 import org.apache.http.client.methods.HttpPost
@@ -27,6 +27,7 @@ import org.gitnex.tea4j.v2.models.AddTimeOption
 import org.gitnex.tea4j.v2.models.EditIssueOption
 import org.gitnex.tea4j.v2.models.Issue
 import org.gitnex.tea4j.v2.models.TrackedTime
+import org.gitnex.tea4j.v2.models.User
 import java.util.concurrent.TimeUnit
 
 /**
@@ -42,13 +43,13 @@ class GiteaRepository : NewBaseRepositoryImpl {
 
     var assigned = false
 
-    var skipSSLVerify = false
-
+    /** Login of the token owner, needed to filter assigned issues; not persisted. */
+    private var currentUserLogin: String? = null
 
     companion object {
         private val GSON: Gson = TaskGsonUtil.createDefaultBuilder().create()
         private val LIST_OF_ISSUES_TYPE: TypeToken<List<Issue>> = object : TypeToken<List<Issue>>() {}
-        private val LOG = Logger.getInstance(GitlabRepository::class.java)
+        private val LOG = Logger.getInstance(GiteaRepository::class.java)
     }
 
     constructor() : super() {
@@ -62,28 +63,56 @@ class GiteaRepository : NewBaseRepositoryImpl {
     }
 
     override fun findTask(id: String): Task? {
+        // ids may come in presentable form ("#12" or "owner/repo#12")
+        val number = id.substringAfterLast('#').toLongOrNull() ?: return null
+        val httpGet = HttpGet(getRestApiUrl("repos", "$repoAuthor", "$repoName", "issues", number.toString()))
         val issue = httpClient.execute(
-            HttpGet(), TaskResponseUtil.GsonSingleObjectDeserializer<Issue>(GSON, Issue::class.java)
-        )
+            httpGet, TaskResponseUtil.GsonSingleObjectDeserializer<Issue>(GSON, Issue::class.java, true)
+        ) ?: return null
         return GiteaTask(this, issue)
     }
 
     override fun createCancellableConnection(): CancellableConnection? {
-        val issueListApi = getRestApiUrl("repos", "$repoAuthor", "$repoName", "issues")
-        val url = URIBuilder(issueListApi).addParameter("access_token", password).build()
-        val httpGet = HttpGet(url)
+        val httpGet = HttpGet(getRestApiUrl("repos", "$repoAuthor", "$repoName"))
         return HttpTestConnection(httpGet)
     }
 
     override fun getIssues(query: String?, offset: Int, limit: Int, withClosed: Boolean): Array<Task> {
-        val uri = URIBuilder(getRestApiUrl("repos", "$repoAuthor", "$repoName", "issues")).addParameter("q", query)
-            .addParameter("assigned", assigned.toString()).addParameter("page", ((offset / limit) + 1).toString())
-            .addParameter("access_token", password).addParameter("limit", limit.toString()).build()
-        val httpGet = HttpGet(uri)
+        val builder = URIBuilder(getRestApiUrl("repos", "$repoAuthor", "$repoName", "issues"))
+            // the endpoint returns pull requests too unless type is given
+            .addParameter("type", "issues")
+            .addParameter("state", if (withClosed) "all" else "open")
+            .addParameter("page", ((offset / limit) + 1).toString())
+            .addParameter("limit", limit.toString())
+        if (!query.isNullOrBlank()) {
+            builder.addParameter("q", query)
+        }
+        if (assigned) {
+            builder.addParameter("assigned_by", getCurrentUserLogin())
+        }
         val issues = httpClient.execute(
-            httpGet, TaskResponseUtil.GsonMultipleObjectsDeserializer<Issue>(GSON, LIST_OF_ISSUES_TYPE)
+            HttpGet(builder.build()), TaskResponseUtil.GsonMultipleObjectsDeserializer<Issue>(GSON, LIST_OF_ISSUES_TYPE)
         )
         return issues.map { GiteaTask(this, it) }.toTypedArray()
+    }
+
+    private fun getCurrentUserLogin(): String {
+        currentUserLogin?.let { return it }
+        val user = httpClient.execute(
+            HttpGet(getRestApiUrl("user")), TaskResponseUtil.GsonSingleObjectDeserializer(GSON, User::class.java)
+        )
+        return user.login.also { currentUserLogin = it }
+    }
+
+    /**
+     * The token as query parameter is deprecated by Gitea and refused when DISABLE_QUERY_AUTH_TOKEN is set: send it as header.
+     */
+    override fun createRequestInterceptor(): HttpRequestInterceptor {
+        return HttpRequestInterceptor { request, _ ->
+            if (!password.isNullOrEmpty()) {
+                request.addHeader("Authorization", "token $password")
+            }
+        }
     }
 
     override fun clone(): BaseRepository {
@@ -120,9 +149,7 @@ class GiteaRepository : NewBaseRepositoryImpl {
     }
 
     override fun updateTimeSpent(task: LocalTask, timeSpent: String, comment: String) {
-        val issueTrackedTimeUrl = getRestApiUrl("repos", "$repoAuthor", "$repoName", "issues", task.id, "times")
-        val url = URIBuilder(issueTrackedTimeUrl).addParameter("access_token", password).build()
-        val httpPost = HttpPost(url)
+        val httpPost = HttpPost(getRestApiUrl("repos", "$repoAuthor", "$repoName", "issues", task.id, "times"))
         val addTimeOption = AddTimeOption()
         val matcher = TIME_SPENT_PATTERN.matcher(timeSpent)
         if (!matcher.find()) {
@@ -141,9 +168,7 @@ class GiteaRepository : NewBaseRepositoryImpl {
     }
 
     override fun setTaskState(task: Task, state: CustomTaskState) {
-        val updateTaskState = getRestApiUrl("repos", "$repoAuthor", "$repoName", "issues", task.id)
-        val url = URIBuilder(updateTaskState).addParameter("access_token", password).build()
-        val httpPatch = HttpPatch(url)
+        val httpPatch = HttpPatch(getRestApiUrl("repos", "$repoAuthor", "$repoName", "issues", task.id))
         val editIssueOption = EditIssueOption()
         editIssueOption.state = state.id
         httpPatch.entity = StringEntity(GSON.toJson(editIssueOption), ContentType.APPLICATION_JSON)
@@ -161,6 +186,6 @@ class GiteaRepository : NewBaseRepositoryImpl {
     }
 
     override fun isUseHttpAuthentication(): Boolean {
-        return true
+        return false
     }
 }
