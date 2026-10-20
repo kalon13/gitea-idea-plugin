@@ -22,20 +22,20 @@ import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
 import git4idea.remote.GitHttpAuthDataProvider
 import git4idea.remote.hosting.GitHostingUrlUtil.match
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import com.intellij.openapi.progress.runBlockingMaybeCancellable
 import kotlinx.coroutines.withContext
 
 class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
     @RequiresBackgroundThread
     override fun getAuthData(project: Project, url: String, login: String): AuthData? {
-        return runBlocking {
+        return runBlockingMaybeCancellable {
             getAuthDataOrCancel(project, url, login)
         }
     }
 
     @RequiresBackgroundThread
     override fun getAuthData(project: Project, url: String): AuthData? {
-        return runBlocking {
+        return runBlockingMaybeCancellable {
             getAuthDataOrCancel(project, url, null)
         }
     }

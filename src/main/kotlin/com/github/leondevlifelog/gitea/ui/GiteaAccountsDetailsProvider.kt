@@ -19,7 +19,6 @@ import com.intellij.openapi.components.service
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.future.await
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.awt.Image
 
@@ -49,10 +48,10 @@ internal class GiteaAccountsDetailsProvider(
         }
     }
 
-    private fun doLoadDetails(
+    private suspend fun doLoadDetails(
         account: GiteaAccount
     ): Result<GiteaAccountDetail> {
-        val token = runBlocking { accountManager.findCredentials(account) } ?: return Result.Error(
+        val token = accountManager.findCredentials(account) ?: return Result.Error(
             GiteaBundle.message("account.token.missing"), true
         )
         val userApi = service<GiteaSettings>().getGiteaApi(account.server.toString(), token).getUserApi()

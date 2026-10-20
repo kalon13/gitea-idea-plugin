@@ -41,9 +41,4 @@ New feature coming soon:
             implementation="com.github.leondevlifelog.gitea.extensions.GiteaProtectedBranchProvider" />
         <gitFetchHandler implementation="com.github.leondevlifelog.gitea.extensions.GiteaProtectedBranchRulesLoader" />
     </extensions>
-
-    <applicationListeners>
-        <listener class="com.github.leondevlifelog.gitea.listeners.GiteaActivationListener"
-            topic="com.intellij.openapi.application.ApplicationActivationListener" />
-    </applicationListeners>
 </idea-plugin>

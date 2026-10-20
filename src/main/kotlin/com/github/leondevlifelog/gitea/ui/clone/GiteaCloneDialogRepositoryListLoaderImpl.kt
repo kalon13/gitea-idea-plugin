@@ -21,7 +21,7 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.ui.SingleSelectionModel
 import com.intellij.util.EventDispatcher
-import kotlinx.coroutines.runBlocking
+import com.intellij.openapi.progress.runBlockingMaybeCancellable
 import org.gitnex.tea4j.v2.models.Repository
 import javax.swing.ListSelectionModel
 
@@ -44,7 +44,7 @@ internal class GiteaCloneDialogRepositoryListLoaderImpl : GiteaCloneDialogReposi
         loadingEventDispatcher.multicaster.eventOccurred()
 
         ProgressManager.getInstance().submitIOTask(indicator) {
-            val token = runBlocking { service<GiteaAccountManager>().findCredentials(account) }
+            val token = runBlockingMaybeCancellable { service<GiteaAccountManager>().findCredentials(account) }
                 ?: throw GiteaMissingTokenException(account)
 
             val userApi = service<GiteaSettings>().getGiteaApi(account.server.toString(), token).getUserApi()

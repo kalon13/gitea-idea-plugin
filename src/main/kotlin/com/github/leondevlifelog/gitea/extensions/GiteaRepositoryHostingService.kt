@@ -9,7 +9,7 @@ import com.github.leondevlifelog.gitea.GiteaConfig
 import com.intellij.openapi.project.Project
 import git4idea.remote.GitRepositoryHostingService
 import git4idea.remote.InteractiveGitHttpAuthDataProvider
-import kotlinx.coroutines.runBlocking
+import com.intellij.openapi.progress.runBlockingMaybeCancellable
 
 class GiteaRepositoryHostingService : GitRepositoryHostingService() {
     override fun getServiceDisplayName(): String {
@@ -17,7 +17,7 @@ class GiteaRepositoryHostingService : GitRepositoryHostingService() {
     }
 
     override fun getInteractiveAuthDataProvider(project: Project, url: String): InteractiveGitHttpAuthDataProvider? {
-        return runBlocking {
+        return runBlockingMaybeCancellable {
             GiteaHttpAuthDataProvider.getAccountsWithTokens(project, url).takeIf { it.isNotEmpty() }?.let {
                 GiteaSelectAccountHttpAuthDataProvider(project, it)
             }
@@ -27,7 +27,7 @@ class GiteaRepositoryHostingService : GitRepositoryHostingService() {
     override fun getInteractiveAuthDataProvider(
         project: Project, url: String, login: String
     ): InteractiveGitHttpAuthDataProvider? {
-        return runBlocking {
+        return runBlockingMaybeCancellable {
             GiteaHttpAuthDataProvider.getAccountsWithTokens(project, url).mapNotNull { (acc, token) ->
                 if (token == null) return@mapNotNull null
                 val details = GiteaHttpAuthDataProvider.getAccountDetails(acc, token) ?: return@mapNotNull null
