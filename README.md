@@ -16,12 +16,16 @@ Gitea Plugin for Jetbrains IDEs.
 * Issues tool window
   * Filter by state, text, label, milestone, assignee and author
   * Read description and comments, comment, close and reopen
-  * Create issues, start working on an issue (branch + task)
+  * Create issues, start working on an issue (branch + task, branch shown on the issue)
+* Pull requests tool window
+  * List, overview with checks and reviews, commits, changed files with the IDE diff
+  * Comment, review (approve / request changes / comment), merge, close/reopen, checkout
+  * Create a pull request from the current branch ("Closes #n" for issue branches)
 * Protected branches loaded from Gitea
 
 # New Feature Coming Soon:
 
-* PR Management & Review
+* Inline review comments in the diff
 
 <!-- Plugin description end -->
 

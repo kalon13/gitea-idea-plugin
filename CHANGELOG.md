@@ -7,6 +7,7 @@
 ### Added
 
 - Issues tool window: list with filters, details with comments, comment, close/reopen, create issue, start working
+- Pull requests tool window: list, overview, commits, changes with diff, comment, review, merge, checkout, create
 - Protected branch rules loaded from Gitea after fetch
 - Setting for the ssh user of clone urls typed by hand
 
