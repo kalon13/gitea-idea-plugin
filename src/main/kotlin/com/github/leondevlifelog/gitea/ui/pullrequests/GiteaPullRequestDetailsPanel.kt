@@ -17,6 +17,7 @@ import com.intellij.openapi.actionSystem.CommonShortcuts
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.openapi.vcs.changes.ui.SimpleAsyncChangesBrowser
 import com.intellij.ui.CollectionListModel
 import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.SimpleColoredComponent
@@ -65,9 +66,11 @@ class GiteaPullRequestDetailsPanel(
             }
         })
     }
+    private val filesBrowser = SimpleAsyncChangesBrowser(project, false, false)
     private val tabs = JBTabbedPane().apply {
         addTab(GiteaBundle.message("pull.tab.overview"), JBScrollPane(htmlPane).apply { border = JBUI.Borders.empty() })
         addTab(GiteaBundle.message("pull.tab.commits"), JBScrollPane(commitsList).apply { border = JBUI.Borders.empty() })
+        addTab(GiteaBundle.message("pull.tab.files"), filesBrowser)
     }
 
     private val commentArea = JBTextArea(3, 0).apply {
@@ -77,6 +80,9 @@ class GiteaPullRequestDetailsPanel(
     }
     private val commentButton = JButton(GiteaBundle.message("issue.comment.button")).apply { addActionListener { comment() } }
     private val stateButton = JButton().apply { addActionListener { toggleState() } }
+    private val checkoutButton = JButton(GiteaBundle.message("pull.checkout.button")).apply {
+        addActionListener { checkout() }
+    }
     private val browserButton = JButton(GiteaBundle.message("issue.open.browser")).apply {
         addActionListener { pullRequest?.htmlUrl?.let(BrowserUtil::browse) }
     }
@@ -94,13 +100,18 @@ class GiteaPullRequestDetailsPanel(
 
     private var pullRequest: PullRequest? = null
     private var loadJob: Job? = null
+    private var changesJob: Job? = null
+    private var changesLoadedFor: Long? = null
     private var busy = false
 
     init {
         add(emptyPanel, BorderLayout.CENTER)
         buttons.add(commentButton)
         buttons.add(stateButton)
+        buttons.add(checkoutButton)
         buttons.add(browserButton)
+        // the changes need a git fetch: loaded only when the tab is shown
+        tabs.addChangeListener { loadChangesIfShown() }
         commentArea.document.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) = updateButtons()
         })
@@ -128,12 +139,15 @@ class GiteaPullRequestDetailsPanel(
         loadJob?.cancel()
         removeAll()
         if (pullRequest == null) {
+            resetChanges()
             add(emptyPanel, BorderLayout.CENTER)
         } else {
             add(pullRequestPanel, BorderLayout.CENTER)
             setHtml(GiteaPullRequestHtml.build(pullRequest, null, null, null, null))
             commitsModel.removeAll()
             loadJob = scope.launch { loadDetails(pullRequest) }
+            resetChanges()
+            loadChangesIfShown()
         }
         updateButtons()
         revalidate()
@@ -160,6 +174,37 @@ class GiteaPullRequestDetailsPanel(
         } catch (e: Exception) {
             val message = StringUtil.escapeXmlEntities(GiteaBundle.message("issue.details.load.error", e.message.orEmpty()))
             setHtml(GiteaPullRequestHtml.build(pr, "<p>$message</p>", null, null, null))
+        }
+    }
+
+    private fun resetChanges() {
+        changesJob?.cancel()
+        changesLoadedFor = null
+        filesBrowser.setChangesToDisplay(emptyList())
+    }
+
+    private fun loadChangesIfShown() {
+        val pr = pullRequest ?: return
+        if (tabs.selectedComponent !== filesBrowser || changesLoadedFor == pr.number || changesJob?.isActive == true) return
+        filesBrowser.viewer.emptyText.text = GiteaBundle.message("pull.files.loading")
+        changesJob = scope.launch {
+            try {
+                filesBrowser.setChangesToDisplay(GiteaPullRequestGit.loadChanges(project, mapping, pr))
+                changesLoadedFor = pr.number
+                filesBrowser.viewer.emptyText.text = GiteaBundle.message("pull.files.empty")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                filesBrowser.viewer.emptyText.text = GiteaBundle.message("pull.files.error", e.message.orEmpty())
+            }
+        }
+    }
+
+    private fun checkout() {
+        val current = pullRequest ?: return
+        if (busy) return
+        runAction(GiteaBundle.message("pull.checkout.failed")) {
+            GiteaPullRequestGit.checkout(project, mapping, current)
         }
     }
 
@@ -249,6 +294,7 @@ class GiteaPullRequestDetailsPanel(
                 GiteaBundle.message(if (hasComment) "pull.reopen.comment.button" else "pull.reopen.button")
             else -> GiteaBundle.message(if (hasComment) "pull.close.comment.button" else "pull.close.button")
         }
+        checkoutButton.isEnabled = current != null && !busy
         browserButton.isEnabled = current?.htmlUrl != null
         buttonUpdaters.forEach { it(current) }
     }
