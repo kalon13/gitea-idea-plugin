@@ -16,6 +16,7 @@ class GiteaNotificationIdsHolder {
             OPEN_IN_BROWSER_FILE_IS_NOT_UNDER_REPO,
             ISSUE_ACTION_FAILED,
             PULL_REQUEST_ACTION_FAILED,
+            PULL_REQUEST_EXISTS,
             OPEN_IN_BROWSER_CANNOT_GET_LAST_REVISION,
             REBASE_SUCCESS,
             GIST_CANNOT_CREATE,
@@ -61,6 +62,7 @@ class GiteaNotificationIdsHolder {
         const val OPEN_IN_BROWSER_FILE_IS_NOT_UNDER_REPO = "gitea.open.in.browser.file.is.not.under.repo"
         const val ISSUE_ACTION_FAILED = "gitea.issue.action.failed"
         const val PULL_REQUEST_ACTION_FAILED = "gitea.pull.request.action.failed"
+        const val PULL_REQUEST_EXISTS = "gitea.pull.request.exists"
         const val OPEN_IN_BROWSER_CANNOT_GET_LAST_REVISION = "gitea.open.in.browser.cannot.get.last.revision"
         const val REBASE_SUCCESS = "gitea.rebase.success"
         const val GIST_CANNOT_CREATE = "gitea.gist.cannot.create"

@@ -146,6 +146,28 @@ class GiteaRepositoryClient(private val api: GiteaApi, path: GiteaRepositoryPath
         callWithoutBody(api.getRepoApi().repoMergePullRequest(owner, repo, pr.number, option))
     }
 
+    suspend fun createPullRequest(head: String, base: String, title: String, body: String): PullRequest {
+        val option = CreatePullRequestOption().apply {
+            this.head = head
+            this.base = base
+            this.title = title
+            this.body = body
+        }
+        return call(api.getRepoApi().repoCreatePullRequest(owner, repo, option))
+    }
+
+    /**
+     * @return the open pull request from [head] into [base], null if there is none.
+     * Not GET /pulls/{base}/{head}: it may return an older closed pull request of the same branches.
+     */
+    suspend fun findOpenPullRequest(base: String, head: String): PullRequest? =
+        fetchAllPages { page ->
+            api.getRepoApi().repoListPullRequests(owner, repo, base, "open", null, null, null, null, page, PAGE_LIMIT)
+        }.firstOrNull { it.head?.ref == head && it.head?.repoId == it.base?.repoId }
+
+    suspend fun listBranchNames(): List<String> =
+        fetchAllPages { page -> api.getRepoApi().repoListBranches(owner, repo, page, PAGE_LIMIT) }.mapNotNull { it.name }
+
     /** Repository settings, e.g. the allowed merge styles. */
     suspend fun getRepository(): Repository = call(api.getRepoApi().repoGet(owner, repo))
 

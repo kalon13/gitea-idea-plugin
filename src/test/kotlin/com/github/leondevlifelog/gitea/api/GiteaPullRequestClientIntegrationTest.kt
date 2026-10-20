@@ -10,7 +10,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.gitnex.tea4j.v2.models.CombinedStatus
 import org.gitnex.tea4j.v2.models.CreatePullReviewOptions
+import org.gitnex.tea4j.v2.models.CreateIssueOption
 import org.gitnex.tea4j.v2.models.CreateStatusOption
+import org.gitnex.tea4j.v2.models.Issue
 import org.gitnex.tea4j.v2.models.MergePullRequestOption
 import org.gitnex.tea4j.v2.models.PullRequest
 import org.gitnex.tea4j.v2.models.PullReview
@@ -118,6 +120,27 @@ class GiteaPullRequestClientIntegrationTest : BasePlatformTestCase() {
         } finally {
             client.setPullRequestState(created.number, true)
         }
+    }
+
+    fun testCreateFindAndCloseIssueOnMerge() = runBlocking {
+        if (!GiteaTestServer.isConfigured) return@runBlocking
+        val client = GiteaTestServer.client()
+        val issue = client.createIssue(CreateIssueOption().apply { title = "closed by merge ${System.currentTimeMillis()}" })
+        // a branch without pull request, like a pushed local branch
+        val probe = GiteaTestServer.createPullRequest("probe ${System.currentTimeMillis()}")
+        client.setPullRequestState(probe.number, true)
+        val branch = probe.head.ref
+        val base = GiteaTestServer.defaultBranch
+
+        assertTrue(client.listBranchNames().containsAll(listOf(base, branch)))
+        // only the closed probe exists for the branch
+        assertNull(client.findOpenPullRequest(base, branch))
+        val created = client.createPullRequest(branch, base, "From $branch", "Closes #${issue.number}")
+        assertEquals(created.number, client.findOpenPullRequest(base, branch)!!.number)
+
+        waitMergeable(client, created.number)
+        client.merge(created, MergePullRequestOption.DoEnum.MERGE, "", "", true)
+        assertEquals(Issue.StateEnum.CLOSED, client.getIssue(issue.number).state)
     }
 
     fun testRepositorySettings() = runBlocking {

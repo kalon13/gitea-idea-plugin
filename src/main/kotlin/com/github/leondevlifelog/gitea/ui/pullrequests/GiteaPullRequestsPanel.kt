@@ -10,11 +10,11 @@ import com.github.leondevlifelog.gitea.api.GiteaIssueState
 import com.github.leondevlifelog.gitea.api.GiteaPullRequestFilter
 import com.github.leondevlifelog.gitea.api.GiteaRepositoryClient
 import com.github.leondevlifelog.gitea.services.GiteaRepositoryMapping
+import com.github.leondevlifelog.gitea.util.GiteaNotificationIdsHolder
+import com.github.leondevlifelog.gitea.util.GiteaNotifications
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.actionSystem.ActionManager
-import com.intellij.openapi.actionSystem.AnAction
-import com.intellij.openapi.actionSystem.Constraints
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.DumbAwareAction
@@ -73,6 +73,7 @@ class GiteaPullRequestsPanel(
     }
     private val createdCheck = JBCheckBox(GiteaBundle.message("issue.filter.created"))
     private val toolbarActions = DefaultActionGroup(
+        DumbAwareAction.create(GiteaBundle.message("pull.action.new"), AllIcons.General.Add) { createPullRequest() },
         DumbAwareAction.create(GiteaBundle.message("issue.action.refresh"), AllIcons.Actions.Refresh) { reload() },
         DumbAwareAction.create(GiteaBundle.message("pull.action.browse.all"), AllIcons.General.Web) {
             BrowserUtil.browse("${mapping.webUrl}/pulls")
@@ -120,11 +121,6 @@ class GiteaPullRequestsPanel(
         reload()
     }
 
-    /** Adds an action to the toolbar, before the built-in ones. */
-    fun addToolbarAction(action: AnAction) {
-        toolbarActions.add(action, Constraints.FIRST)
-    }
-
     private fun updateFilter(transform: (GiteaPullRequestFilter) -> GiteaPullRequestFilter) {
         val newFilter = transform(filter)
         if (newFilter == filter) return
@@ -141,11 +137,64 @@ class GiteaPullRequestsPanel(
         loadMore()
     }
 
-    /** Puts [pullRequest] first in the list and selects it, e.g. after creating it. */
-    fun showNew(pullRequest: PullRequest) {
-        listModel.add(0, pullRequest)
-        list.selectedIndex = 0
-        list.ensureIndexIsVisible(0)
+    /** Selects [pullRequest], adding it first to the list when it is not loaded, e.g. after creating it. */
+    private fun select(pullRequest: PullRequest) {
+        var index = listModel.items.indexOfFirst { it.number == pullRequest.number }
+        if (index < 0) {
+            listModel.add(0, pullRequest)
+            index = 0
+        }
+        list.selectedIndex = index
+        list.ensureIndexIsVisible(index)
+    }
+
+    /**
+     * New pull request from the current branch into the default branch (changeable in the dialog). When a pull
+     * request is already open for the branch, it is selected instead.
+     */
+    private fun createPullRequest() {
+        val branch = mapping.gitRepository.currentBranchName
+        if (branch == null) {
+            warn(GiteaNotificationIdsHolder.PULL_REQUEST_NO_CURRENT_BRANCH, GiteaBundle.message("pull.create.detached"))
+            return
+        }
+        scope.launch {
+            try {
+                val base = client.getRepository().defaultBranch
+                if (branch == base) {
+                    warn(GiteaNotificationIdsHolder.PULL_REQUEST_CREATION_ERROR, GiteaBundle.message("pull.create.on.base", base))
+                    return@launch
+                }
+                val existing = client.findOpenPullRequest(base, branch)
+                if (existing != null) {
+                    select(existing)
+                    GiteaNotifications.showInfo(
+                        project, GiteaNotificationIdsHolder.PULL_REQUEST_EXISTS,
+                        GiteaBundle.message("pull.create.exists.title"), GiteaBundle.message("pull.create.exists", existing.number, branch)
+                    )
+                    return@launch
+                }
+                val branches = client.listBranchNames().ifEmpty { listOf(base) }
+                val proposal = GiteaPullRequestCreator.loadProposal(project, mapping, client, branch, base)
+                val dialog = GiteaCreatePullRequestDialog(project, branch, branches, base, proposal)
+                if (!dialog.showAndGet()) return@launch
+                select(
+                    GiteaPullRequestCreator.create(
+                        project, mapping, client, branch, dialog.base, dialog.pullRequestTitle, dialog.pullRequestBody
+                    )
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                GiteaNotifications.showError(
+                    project, GiteaNotificationIdsHolder.PULL_REQUEST_CREATION_ERROR, GiteaBundle.message("pull.create.failed"), e
+                )
+            }
+        }
+    }
+
+    private fun warn(displayId: String, message: String) {
+        GiteaNotifications.showWarning(project, displayId, GiteaBundle.message("pull.create.failed"), message)
     }
 
     private fun loadMoreIfNeeded() {
