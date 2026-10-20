@@ -82,6 +82,21 @@ class GiteaRepositoryClientIntegrationTest : BasePlatformTestCase() {
         }
     }
 
+    fun testSearchByNumber() = runBlocking {
+        val client = client() ?: return@runBlocking
+        val created = client.createIssue(CreateIssueOption().apply { title = "by number" })
+        try {
+            client.setIssueState(created.number, true)
+            // direct lookup: other criteria (here the open state) are ignored
+            val found = client.listIssues(GiteaIssueFilter(query = "#${created.number}"), 1, 30)
+            assertEquals(listOf(created.number), found.map { it.number })
+            assertTrue(client.listIssues(GiteaIssueFilter(query = "#${created.number}"), 2, 30).isEmpty())
+            assertTrue(client.listIssues(GiteaIssueFilter(query = "#999999"), 1, 30).isEmpty())
+        } finally {
+            client.setIssueState(created.number, true)
+        }
+    }
+
     fun testListIssuesExcludesPullRequests() = runBlocking {
         val client = client() ?: return@runBlocking
         val issues = client.listIssues(GiteaIssueFilter(state = GiteaIssueState.ALL), 1, 50)

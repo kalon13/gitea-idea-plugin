@@ -59,7 +59,9 @@ class GiteaIssuesPanel(
     private val listScrollPane = JBScrollPane(list).apply { border = JBUI.Borders.empty() }
     private val details = GiteaIssueDetailsPanel(project, client, scope, ::replaceIssue, ::startWorking)
 
-    private val searchField = SearchTextField(false)
+    private val searchField = SearchTextField(false).apply {
+        textEditor.emptyText.text = GiteaBundle.message("issue.filter.search.hint")
+    }
     private val stateCombo = ComboBox(GiteaIssueState.entries.toTypedArray()).apply {
         renderer = object : SimpleListCellRenderer<GiteaIssueState>() {
             override fun customize(
@@ -209,6 +211,7 @@ class GiteaIssuesPanel(
                 hasMore = issues.size >= PAGE_SIZE
                 listModel.add(issues)
                 list.emptyText.text = GiteaBundle.message("issue.list.empty")
+                if (filter.issueNumber != null && listModel.size == 1) list.selectedIndex = 0
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

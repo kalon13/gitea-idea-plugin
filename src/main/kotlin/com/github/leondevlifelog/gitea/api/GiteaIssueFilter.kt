@@ -21,4 +21,15 @@ data class GiteaIssueFilter(
     val milestone: String? = null,
     val assignedToMe: Boolean = false,
     val createdByMe: Boolean = false,
-)
+) {
+    /**
+     * Number of the issue when the query is `#12`: the issue is opened directly, the other criteria are ignored.
+     * Gitea's search finds nothing for `#12`; a plain `12` is left to it, since it also matches the number in texts.
+     */
+    val issueNumber: Long?
+        get() = ISSUE_NUMBER.matchEntire(query.trim())?.groupValues?.get(1)?.toLongOrNull()
+
+    private companion object {
+        val ISSUE_NUMBER = Regex("""#(\d+)""")
+    }
+}

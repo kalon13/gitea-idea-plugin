@@ -35,6 +35,7 @@ class GiteaRepositoryClient(private val api: GiteaApi, path: GiteaRepositoryPath
     }
 
     suspend fun listIssues(filter: GiteaIssueFilter, page: Int, limit: Int): List<Issue> {
+        filter.issueNumber?.let { return if (page > 1) emptyList() else listOfNotNull(findIssue(it)) }
         val login = if (filter.assignedToMe || filter.createdByMe) getCurrentUser().login else null
         return call(
             api.getIssueApi().issueListIssues(
@@ -54,6 +55,13 @@ class GiteaRepositoryClient(private val api: GiteaApi, path: GiteaRepositoryPath
     }
 
     suspend fun getIssue(number: Long): Issue = call(api.getIssueApi().issueGetIssue(owner, repo, number))
+
+    /** @return null when there is no issue with this number, or it is a pull request */
+    private suspend fun findIssue(number: Long): Issue? = try {
+        getIssue(number).takeIf { it.pullRequest == null }
+    } catch (e: GiteaApiException) {
+        if (e.statusCode == 404) null else throw e
+    }
 
     suspend fun getComments(number: Long): List<Comment> =
         call(api.getIssueApi().issueGetComments(owner, repo, number, null, null))
