@@ -66,6 +66,14 @@ class GiteaRepositoryClient(private val api: GiteaApi, path: GiteaRepositoryPath
         return call(api.getIssueApi().issueEditIssue(owner, repo, number, option))
     }
 
+    /**
+     * Sets the branch or tag shown as reference in the issue sidebar; the branch may not be pushed yet.
+     */
+    suspend fun setIssueRef(number: Long, ref: String): Issue {
+        val option = EditIssueOption().apply { this.ref = ref }
+        return call(api.getIssueApi().issueEditIssue(owner, repo, number, option))
+    }
+
     suspend fun createIssue(option: CreateIssueOption): Issue =
         call(api.getIssueApi().issueCreateIssue(owner, repo, option))
 

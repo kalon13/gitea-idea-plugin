@@ -19,10 +19,11 @@ import org.gitnex.tea4j.v2.models.Issue
 /**
  * "Start working" on an issue: creates and checks out a branch and, when a Gitea task server is configured for
  * the same repository, activates the task so that time tracking and state updates work.
+ * [onBranchCreated] is called on the EDT once the new branch is checked out.
  */
 object GiteaIssueTaskStarter {
 
-    fun start(project: Project, mapping: GiteaRepositoryMapping, issue: Issue) {
+    fun start(project: Project, mapping: GiteaRepositoryMapping, issue: Issue, onBranchCreated: (String) -> Unit) {
         val branch = Messages.showInputDialog(
             project,
             GiteaBundle.message("issue.start.branch.prompt"),
@@ -35,7 +36,11 @@ object GiteaIssueTaskStarter {
         findTaskRepository(project, mapping)?.let { taskRepository ->
             TaskManager.getManager(project).activateTask(GiteaTask(taskRepository, issue), false)
         }
-        GitBrancher.getInstance(project).checkoutNewBranch(branch, listOf(mapping.gitRepository))
+        val repository = mapping.gitRepository
+        // the callback runs also when the checkout fails: check that the new branch is the current one
+        GitBrancher.getInstance(project).checkoutNewBranchStartingFrom(branch, "HEAD", listOf(repository)) {
+            if (repository.currentBranchName == branch) onBranchCreated(branch)
+        }
     }
 
     private fun findTaskRepository(project: Project, mapping: GiteaRepositoryMapping): GiteaRepository? {

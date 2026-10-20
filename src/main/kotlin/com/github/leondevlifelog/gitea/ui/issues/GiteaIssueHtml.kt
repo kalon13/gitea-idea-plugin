@@ -55,6 +55,11 @@ object GiteaIssueHtml {
             sb.append("</p>")
         }
 
+        issue.ref?.takeIf { it.isNotBlank() }?.let {
+            sb.append("<p><font color='$grey'>").append(escape(GiteaBundle.message("issue.details.branch", it)))
+                .append("</font></p>")
+        }
+
         val assignees = issue.assignees.orEmpty().mapNotNull { it.login }
         if (assignees.isNotEmpty()) {
             sb.append("<p><font color='$grey'>")

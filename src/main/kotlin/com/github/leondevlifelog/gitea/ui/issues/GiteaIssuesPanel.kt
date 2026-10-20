@@ -57,7 +57,7 @@ class GiteaIssuesPanel(
         selectionMode = ListSelectionModel.SINGLE_SELECTION
     }
     private val listScrollPane = JBScrollPane(list).apply { border = JBUI.Borders.empty() }
-    private val details = GiteaIssueDetailsPanel(project, mapping, client, scope, ::replaceIssue)
+    private val details = GiteaIssueDetailsPanel(project, client, scope, ::replaceIssue, ::startWorking)
 
     private val searchField = SearchTextField(false)
     private val stateCombo = ComboBox(GiteaIssueState.entries.toTypedArray()).apply {
@@ -153,7 +153,7 @@ class GiteaIssuesPanel(
                 list.selectedValue?.htmlUrl?.let { CopyPasteManager.getInstance().setContents(StringSelection(it)) }
             },
             DumbAwareAction.create(GiteaBundle.message("issue.start.button")) {
-                list.selectedValue?.let { GiteaIssueTaskStarter.start(project, mapping, it) }
+                list.selectedValue?.let(::startWorking)
             },
         )
         PopupHandler.installPopupMenu(list, group, "GiteaIssuesPopup")
@@ -220,6 +220,29 @@ class GiteaIssuesPanel(
             // a short first page may not fill the viewport: no scroll event would ever ask for the next one.
             // Checked in a new coroutine, after this job has completed and the list has been laid out.
             if (hasMore) scope.launch { loadMoreIfNeeded() }
+        }
+    }
+
+    private fun startWorking(issue: Issue) {
+        GiteaIssueTaskStarter.start(project, mapping, issue) { branch -> setBranchReference(issue, branch) }
+    }
+
+    /** Shows the new branch in the issue on Gitea, so that others know where the work happens. */
+    private fun setBranchReference(issue: Issue, branch: String) {
+        scope.launch {
+            try {
+                val updated = client.setIssueRef(issue.number, branch)
+                replaceIssue(updated)
+                details.issueChanged(updated)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                GiteaNotifications.showWarning(
+                    project, GiteaNotificationIdsHolder.ISSUE_ACTION_FAILED,
+                    GiteaBundle.message("issue.start.reference.failed", branch),
+                    GiteaNotifications.getErrorTextFromException(e)
+                )
+            }
         }
     }
 

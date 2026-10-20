@@ -26,5 +26,16 @@ class GiteaIssueHtmlTest : BasePlatformTestCase() {
         val html = GiteaIssueHtml.build(issue, "<p>body</p>", emptyList())
         assertTrue(html, html.contains("&lt;script&gt;x&lt;/script&gt; &amp; co"))
         assertTrue(html, html.contains("<p>body</p>"))
+        assertFalse(html, html.contains("Branch:"))
+    }
+
+    fun testBranchReference() {
+        val issue = Issue().apply {
+            number = 5
+            title = "x"
+            state = Issue.StateEnum.OPEN
+            ref = "issue-5-x"
+        }
+        assertTrue(GiteaIssueHtml.build(issue, "", emptyList()).contains("Branch: issue-5-x"))
     }
 }

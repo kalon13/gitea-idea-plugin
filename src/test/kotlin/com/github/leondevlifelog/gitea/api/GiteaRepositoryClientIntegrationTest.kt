@@ -47,6 +47,9 @@ class GiteaRepositoryClientIntegrationTest : BasePlatformTestCase() {
             assertTrue(client.listIssues(GiteaIssueFilter(assignedToMe = true), 1, 30).any { it.number == created.number })
             assertTrue(client.listIssues(GiteaIssueFilter(createdByMe = true), 1, 30).any { it.number == created.number })
 
+            assertEquals("issue-${created.number}-not-pushed", client.setIssueRef(created.number, "issue-${created.number}-not-pushed").ref)
+            assertEquals("issue-${created.number}-not-pushed", client.getIssue(created.number).ref)
+
             client.addComment(created.number, "a **comment**")
             assertEquals(listOf("a **comment**"), client.getComments(created.number).map { it.body })
 

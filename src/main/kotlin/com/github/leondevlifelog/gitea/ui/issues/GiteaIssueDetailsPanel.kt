@@ -7,7 +7,6 @@ package com.github.leondevlifelog.gitea.ui.issues
 
 import com.github.leondevlifelog.gitea.GiteaBundle
 import com.github.leondevlifelog.gitea.api.GiteaRepositoryClient
-import com.github.leondevlifelog.gitea.services.GiteaRepositoryMapping
 import com.github.leondevlifelog.gitea.util.GiteaNotificationIdsHolder
 import com.github.leondevlifelog.gitea.util.GiteaNotifications
 import com.intellij.ide.BrowserUtil
@@ -37,10 +36,10 @@ import javax.swing.event.DocumentEvent
  */
 class GiteaIssueDetailsPanel(
     private val project: Project,
-    private val mapping: GiteaRepositoryMapping,
     private val client: GiteaRepositoryClient,
     private val scope: CoroutineScope,
     private val onIssueUpdated: (Issue) -> Unit,
+    private val onStartWorking: (Issue) -> Unit,
 ) : JPanel(BorderLayout()) {
 
     private val htmlPane = JEditorPane().apply {
@@ -63,7 +62,7 @@ class GiteaIssueDetailsPanel(
     }
     private val stateButton = JButton().apply { addActionListener { toggleState() } }
     private val startButton = JButton(GiteaBundle.message("issue.start.button")).apply {
-        addActionListener { issue?.let { GiteaIssueTaskStarter.start(project, mapping, it) } }
+        addActionListener { issue?.let(onStartWorking) }
     }
     private val browserButton = JButton(GiteaBundle.message("issue.open.browser")).apply {
         addActionListener { issue?.htmlUrl?.let(BrowserUtil::browse) }
@@ -113,6 +112,11 @@ class GiteaIssueDetailsPanel(
         updateButtons()
         revalidate()
         repaint()
+    }
+
+    /** Shows [issue] again if it is the one displayed, after a change made elsewhere. */
+    fun issueChanged(issue: Issue) {
+        if (issue.number == this.issue?.number) showIssue(issue)
     }
 
     private suspend fun loadDetails(issue: Issue) {
