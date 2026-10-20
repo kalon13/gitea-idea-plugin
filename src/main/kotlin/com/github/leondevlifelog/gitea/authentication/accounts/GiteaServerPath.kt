@@ -88,8 +88,8 @@ class GiteaServerPath(usHttp: Boolean, host: String, port: Int, path: String?) :
         return myPath
     }
 
-    fun toSshCloneUrl(user: String, repo: String, sshPort: Int): String {
-        return "ssh://git@${myHost}:$sshPort/$user/$repo.git"
+    fun toSshCloneUrl(user: String, repo: String, sshPort: Int, sshUser: String = "git"): String {
+        return "ssh://$sshUser@${myHost}:$sshPort/$user/$repo.git"
     }
 
     fun toHttpCloneUrl(user: String, repo: String): String {

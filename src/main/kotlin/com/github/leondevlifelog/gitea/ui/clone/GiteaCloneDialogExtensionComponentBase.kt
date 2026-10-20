@@ -342,9 +342,7 @@ public abstract class GiteaCloneDialogExtensionComponentBase(
         }
         val selectedValue = repositoryList.selectedValue
         if (selectedValue is GiteaRepositoryListItem.Repo) {
-            selectedUrl = giteaGitHelper.getRemoteUrl(selectedValue.account.server,
-                selectedValue.repo.owner.login,
-                selectedValue.repo.name)
+            selectedUrl = giteaGitHelper.getRemoteUrl(selectedValue.account.server, selectedValue.repo)
             return
         }
         selectedUrl = null

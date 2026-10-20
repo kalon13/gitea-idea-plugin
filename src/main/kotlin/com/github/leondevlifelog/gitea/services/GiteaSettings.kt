@@ -25,14 +25,10 @@ class GiteaSettings : PersistentStateComponent<GiteaSettings.State> {
     fun setReposPerPage(value: Int) { myState.REPOS_PER_PAGE = value.coerceAtMost(50).coerceAtLeast(1) }
     class State {
         var REPOS_PER_PAGE = 50
-        var OPEN_IN_BROWSER_GIST = true
-        var COPY_URL_GIST = false
-
-        // "Secret" in UI, "Public" in API. "Private" here to preserve user settings after refactoring
-        var PRIVATE_GIST = true
         var CONNECTION_TIMEOUT = 5000
         var CLONE_GIT_USING_SSH = false
         var SSH_PORT = 22
+        var SSH_USER = "git"
     }
 
     override fun getState(): State {
@@ -62,32 +58,8 @@ class GiteaSettings : PersistentStateComponent<GiteaSettings.State> {
         myState.CONNECTION_TIMEOUT = timeout
     }
 
-    fun isOpenInBrowserGist(): Boolean {
-        return myState.OPEN_IN_BROWSER_GIST
-    }
-
-    fun isCopyURLGist(): Boolean {
-        return myState.COPY_URL_GIST
-    }
-
-    fun setCopyURLGist(copyLink: Boolean) {
-        myState.COPY_URL_GIST = copyLink
-    }
-
-    fun isPrivateGist(): Boolean {
-        return myState.PRIVATE_GIST
-    }
-
     fun isCloneGitUsingSsh(): Boolean {
         return myState.CLONE_GIT_USING_SSH
-    }
-
-    fun setPrivateGist(secretGist: Boolean) {
-        myState.PRIVATE_GIST = secretGist
-    }
-
-    fun setOpenInBrowserGist(openInBrowserGist: Boolean) {
-        myState.OPEN_IN_BROWSER_GIST = openInBrowserGist
     }
 
     fun setCloneGitUsingSsh(value: Boolean) {
@@ -96,6 +68,14 @@ class GiteaSettings : PersistentStateComponent<GiteaSettings.State> {
 
     fun setSshPort(port: Int) {
         myState.SSH_PORT = port
+    }
+
+    fun getSshUser(): String {
+        return myState.SSH_USER
+    }
+
+    fun setSshUser(user: String) {
+        myState.SSH_USER = user.trim().ifEmpty { "git" }
     }
 
 }

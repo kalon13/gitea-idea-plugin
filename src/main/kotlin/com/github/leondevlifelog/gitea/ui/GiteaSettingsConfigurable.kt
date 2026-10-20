@@ -50,6 +50,11 @@ class GiteaSettingsConfigurable internal constructor(private val project: Projec
                     settings.setSshPort(it)
                 }).gap(RightGap.SMALL)
             }
+            row(GiteaBundle.message("settings.ssh.user")) {
+                textField().columns(COLUMNS_SHORT).bindText({ settings.getSshUser() }, {
+                    settings.setSshUser(it)
+                }).comment(GiteaBundle.message("settings.ssh.user.comment"))
+            }
             row {
                 checkBox(GiteaBundle.message("settings.clone.ssh")).bindSelected(
                     settings::isCloneGitUsingSsh, settings::setCloneGitUsingSsh

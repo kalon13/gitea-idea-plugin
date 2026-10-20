@@ -30,6 +30,10 @@ class GiteaServerPathTest : TestCase() {
         assertEquals("ssh://git@localhost:22/user/repo.git", server.toSshCloneUrl("user", "repo", 22))
     }
 
+    fun testToSshCloneUrlCustomUser() {
+        assertEquals("ssh://gitea@localhost:2222/user/repo.git", server.toSshCloneUrl("user", "repo", 2222, "gitea"))
+    }
+
 
     fun testToHttpCloneUrl() {
         assertEquals("http://localhost/gitea/user/repo.git", server.toHttpCloneUrl("user", "repo"))
