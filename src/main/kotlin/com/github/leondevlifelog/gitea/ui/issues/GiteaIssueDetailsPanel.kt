@@ -14,19 +14,16 @@ import com.intellij.openapi.actionSystem.CommonShortcuts
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.text.StringUtil
-import com.intellij.ui.BrowserHyperlinkListener
 import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.components.JBPanelWithEmptyText
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
-import com.intellij.util.ui.HTMLEditorKitBuilder
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.*
 import org.gitnex.tea4j.v2.models.Issue
 import java.awt.BorderLayout
 import java.awt.FlowLayout
 import javax.swing.JButton
-import javax.swing.JEditorPane
 import javax.swing.JPanel
 import javax.swing.event.DocumentEvent
 
@@ -42,14 +39,7 @@ class GiteaIssueDetailsPanel(
     private val onStartWorking: (Issue) -> Unit,
 ) : JPanel(BorderLayout()) {
 
-    private val htmlPane = JEditorPane().apply {
-        editorKit = HTMLEditorKitBuilder().withWordWrapViewFactory().build().also {
-            GiteaIssueHtml.addMarkdownRules(it.styleSheet)
-        }
-        isEditable = false
-        border = JBUI.Borders.empty(8)
-        addHyperlinkListener(BrowserHyperlinkListener.INSTANCE)
-    }
+    private val htmlPane = createGiteaHtmlPane()
 
     private val commentArea = JBTextArea(3, 0).apply {
         lineWrap = true
@@ -123,13 +113,7 @@ class GiteaIssueDetailsPanel(
         try {
             coroutineScope {
                 val body = async { client.renderMarkdown(issue.body) }
-                val comments = client.getComments(issue.number).map { comment ->
-                    async {
-                        GiteaIssueHtml.RenderedComment(
-                            comment.user?.login.orEmpty(), comment.createdAt, client.renderMarkdown(comment.body)
-                        )
-                    }
-                }.awaitAll()
+                val comments = loadRenderedComments(client, issue.number)
                 setHtml(GiteaIssueHtml.build(issue, body.await(), comments))
             }
         } catch (e: CancellationException) {

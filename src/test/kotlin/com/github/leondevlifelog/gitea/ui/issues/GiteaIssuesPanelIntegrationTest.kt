@@ -41,10 +41,7 @@ class GiteaIssuesPanelIntegrationTest : BasePlatformTestCase() {
         if (url.isNullOrBlank() || token.isNullOrBlank() || repo.isNullOrBlank()) return
 
         val path = GiteaRepositoryPath(repo.substringBefore('/'), repo.substringAfter('/'))
-        val mapping = GiteaRepositoryMapping(
-            GiteaAccount("tester", GiteaServerPath.from(url)), path, fakeGitRepository(),
-            GitRemote(GitRemote.ORIGIN, listOf("$url/$repo.git"), emptyList(), emptyList(), emptyList())
-        )
+        val mapping = fakeMapping()
         val client = GiteaRepositoryClient(GiteaSettings.getInstance().getGiteaApi(url, token), path)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.EDT)
         try {
@@ -72,23 +69,38 @@ class GiteaIssuesPanelIntegrationTest : BasePlatformTestCase() {
         }
     }
 
-    private fun waitUntil(what: String, condition: () -> Boolean) {
-        val deadline = System.currentTimeMillis() + 15_000
-        while (!condition()) {
-            if (System.currentTimeMillis() > deadline) fail("timeout waiting for: $what")
-            PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
-            Thread.sleep(20)
+    companion object {
+        /** Pumps the EDT until [condition] holds, at most 15 seconds. */
+        fun waitUntil(what: String, condition: () -> Boolean) {
+            val deadline = System.currentTimeMillis() + 15_000
+            while (!condition()) {
+                if (System.currentTimeMillis() > deadline) fail("timeout waiting for: $what")
+                PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+                Thread.sleep(20)
+            }
         }
-    }
 
-    private fun fakeGitRepository(): GitRepository = Proxy.newProxyInstance(
-        javaClass.classLoader, arrayOf(GitRepository::class.java)
-    ) { proxy, method, args ->
-        when (method.name) {
-            "hashCode" -> System.identityHashCode(proxy)
-            "equals" -> proxy === args?.get(0)
-            "toString" -> "fake git repository"
-            else -> throw UnsupportedOperationException(method.name)
+        /** Mapping of the test repository, with a git repository that must not be used. */
+        fun fakeMapping(): GiteaRepositoryMapping {
+            val url = System.getenv("GITEA_TEST_URL")
+            val repo = System.getenv("GITEA_TEST_REPO")
+            return GiteaRepositoryMapping(
+                GiteaAccount("tester", GiteaServerPath.from(url)),
+                GiteaRepositoryPath(repo.substringBefore('/'), repo.substringAfter('/')),
+                fakeGitRepository(),
+                GitRemote(GitRemote.ORIGIN, listOf("$url/$repo.git"), emptyList(), emptyList(), emptyList())
+            )
         }
-    } as GitRepository
+
+        private fun fakeGitRepository(): GitRepository = Proxy.newProxyInstance(
+            GiteaIssuesPanelIntegrationTest::class.java.classLoader, arrayOf(GitRepository::class.java)
+        ) { proxy, method, args ->
+            when (method.name) {
+                "hashCode" -> System.identityHashCode(proxy)
+                "equals" -> proxy === args?.get(0)
+                "toString" -> "fake git repository"
+                else -> throw UnsupportedOperationException(method.name)
+            }
+        } as GitRepository
+    }
 }

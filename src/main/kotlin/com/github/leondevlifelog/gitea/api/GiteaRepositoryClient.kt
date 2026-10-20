@@ -90,6 +90,45 @@ class GiteaRepositoryClient(private val api: GiteaApi, path: GiteaRepositoryPath
     suspend fun listMilestones(): List<Milestone> =
         call(api.getIssueApi().issueGetMilestonesList(owner, repo, "open", null, 1, 50))
 
+    suspend fun listPullRequests(filter: GiteaPullRequestFilter, page: Int, limit: Int): List<PullRequest> {
+        val poster = if (filter.createdByMe) getCurrentUser().login else null
+        return call(
+            api.getRepoApi().repoListPullRequests(
+                owner, repo, null, filter.state.apiValue, "recentupdate", null, null, poster, page, limit
+            )
+        )
+    }
+
+    suspend fun getPullRequest(number: Long): PullRequest = call(api.getRepoApi().repoGetPullRequest(owner, repo, number))
+
+    suspend fun getPullRequestCommits(number: Long): List<Commit> =
+        fetchAllPages { page -> api.getRepoApi().repoGetPullRequestCommits(owner, repo, number, page, PAGE_LIMIT, false, false) }
+
+    suspend fun listReviews(number: Long): List<PullReview> =
+        fetchAllPages { page -> api.getRepoApi().repoListPullReviews(owner, repo, number, page, PAGE_LIMIT) }
+
+    /**
+     * @return null when the commit has no status (no CI configured)
+     */
+    suspend fun getCombinedStatus(sha: String): CombinedStatus? =
+        call(api.getRepoApi().repoGetCombinedStatusByRef(owner, repo, sha, 1, PAGE_LIMIT)).takeIf { !it.statuses.isNullOrEmpty() }
+
+    suspend fun setPullRequestState(number: Long, closed: Boolean): PullRequest {
+        val option = EditPullRequestOption().apply { state = if (closed) "closed" else "open" }
+        return call(api.getRepoApi().repoEditPullRequest(owner, repo, number, option))
+    }
+
+    /** Pages of [PAGE_LIMIT] items until a short page, at most [MAX_PAGES]. */
+    private suspend fun <T> fetchAllPages(request: (Int) -> Call<List<T>>): List<T> {
+        val result = mutableListOf<T>()
+        for (page in 1..MAX_PAGES) {
+            val items = call(request(page))
+            result.addAll(items)
+            if (items.size < PAGE_LIMIT) break
+        }
+        return result
+    }
+
     /**
      * Renders markdown as the web UI does for comments: issue references and mentions become links.
      */
@@ -115,6 +154,10 @@ class GiteaRepositoryClient(private val api: GiteaApi, path: GiteaRepositoryPath
     }
 
     companion object {
+        /** Maximum page size accepted by Gitea by default (MAX_RESPONSE_ITEMS) */
+        private const val PAGE_LIMIT = 50
+        private const val MAX_PAGES = 10
+
         /**
          * @return null when no token is stored for the account
          */

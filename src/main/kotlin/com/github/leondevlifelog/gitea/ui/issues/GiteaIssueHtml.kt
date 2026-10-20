@@ -12,12 +12,14 @@ import com.intellij.util.text.DateFormatUtil
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import org.gitnex.tea4j.v2.models.Issue
+import org.gitnex.tea4j.v2.models.Label
 import java.awt.Color
 import java.util.*
 import javax.swing.text.html.StyleSheet
 
 /**
  * Builds the HTML shown in the issue details. Markdown is rendered by the server; this only assembles the page.
+ * The `append*` parts are shared with the pull request details.
  */
 object GiteaIssueHtml {
 
@@ -43,17 +45,7 @@ object GiteaIssueHtml {
         }
         sb.append("</p>")
 
-        val labels = issue.labels.orEmpty()
-        if (labels.isNotEmpty()) {
-            sb.append("<p>")
-            labels.forEach { label ->
-                val bg = GiteaIssueListCellRenderer.labelColor(label) ?: Color.GRAY
-                val fg = if (ColorUtil.isDark(bg)) "#ffffff" else "#000000"
-                sb.append("<span style='background-color:${ColorUtil.toHtmlColor(bg)}; color:$fg'>&nbsp;")
-                    .append(escape(label.name)).append("&nbsp;</span> ")
-            }
-            sb.append("</p>")
-        }
+        appendLabels(sb, issue.labels.orEmpty())
 
         issue.ref?.takeIf { it.isNotBlank() }?.let {
             sb.append("<p><font color='$grey'>").append(escape(GiteaBundle.message("issue.details.branch", it)))
@@ -67,6 +59,27 @@ object GiteaIssueHtml {
                 .append("</font></p>")
         }
 
+        appendBodyAndComments(sb, bodyHtml, comments)
+        return sb.append("</body></html>").toString()
+    }
+
+    fun appendLabels(sb: StringBuilder, labels: List<Label>) {
+        if (labels.isEmpty()) return
+        sb.append("<p>")
+        labels.forEach { label ->
+            val bg = GiteaIssueListCellRenderer.labelColor(label) ?: Color.GRAY
+            val fg = if (ColorUtil.isDark(bg)) "#ffffff" else "#000000"
+            sb.append("<span style='background-color:${ColorUtil.toHtmlColor(bg)}; color:$fg'>&nbsp;")
+                .append(escape(label.name)).append("&nbsp;</span> ")
+        }
+        sb.append("</p>")
+    }
+
+    /**
+     * @param bodyHtml null while loading
+     */
+    fun appendBodyAndComments(sb: StringBuilder, bodyHtml: String?, comments: List<RenderedComment>?) {
+        val grey = ColorUtil.toHtmlColor(UIUtil.getContextHelpForeground())
         sb.append("<hr>")
         when {
             bodyHtml == null -> sb.append("<p><i>").append(escape(GiteaBundle.message("issue.details.loading"))).append("</i></p>")
@@ -82,7 +95,6 @@ object GiteaIssueHtml {
                 sb.append(sanitize(comment.html))
             }
         }
-        return sb.append("</body></html>").toString()
     }
 
     private val IMG_TAG = Regex("""<img\b[^>]*?\bsrc\s*=\s*["']([^"']*)["'][^>]*>""", RegexOption.IGNORE_CASE)
@@ -116,7 +128,7 @@ object GiteaIssueHtml {
         ).forEach(styleSheet::addRule)
     }
 
-    private fun formatDate(date: Date?): String = date?.let { DateFormatUtil.formatPrettyDateTime(it) }.orEmpty()
+    fun formatDate(date: Date?): String = date?.let { DateFormatUtil.formatPrettyDateTime(it) }.orEmpty()
 
-    private fun escape(text: String?): String = StringUtil.escapeXmlEntities(text.orEmpty())
+    fun escape(text: String?): String = StringUtil.escapeXmlEntities(text.orEmpty())
 }
