@@ -3,14 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
-package com.github.leondevlifelog.gitea.ui.issues
+package com.github.leondevlifelog.gitea.ui
 
 import com.github.leondevlifelog.gitea.GiteaBundle
 import com.github.leondevlifelog.gitea.api.GiteaRepositoryClient
 import com.github.leondevlifelog.gitea.authentication.accounts.GiteaAccountManager
 import com.github.leondevlifelog.gitea.services.GiteaProjectRepositories
 import com.github.leondevlifelog.gitea.services.GiteaRepositoryMapping
-import com.github.leondevlifelog.gitea.ui.GiteaSettingsConfigurable
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.ModalityState
@@ -33,10 +32,14 @@ import javax.swing.JList
 import javax.swing.JPanel
 
 /**
- * Content of the "Issues" tab: finds the Gitea repositories of the project and shows the issues of the selected one.
- * Follows changes of git remotes and accounts.
+ * Content of a tab of the Gitea tool window: finds the Gitea repositories of the project and shows the content
+ * created by [contentFactory] for the selected one. Follows changes of git remotes and accounts.
+ * The factory receives a scope dispatching on the EDT, cancelled when another repository is selected.
  */
-class GiteaIssuesToolWindowPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
+class GiteaRepositoryToolWindowPanel(
+    private val project: Project,
+    private val contentFactory: (GiteaRepositoryMapping, GiteaRepositoryClient, CoroutineScope) -> JComponent,
+) : JPanel(BorderLayout()), Disposable {
 
     private val scope = GiteaProjectRepositories.getInstance(project)
         .childScope(Dispatchers.EDT + ModalityState.any().asContextElement())
@@ -93,7 +96,7 @@ class GiteaIssuesToolWindowPanel(private val project: Project) : JPanel(BorderLa
     private fun showRepository(mapping: GiteaRepositoryMapping?) {
         repositoryScope?.cancel()
         repositoryScope = null
-        setRepositoryContent(JBPanelWithEmptyText().withEmptyText(GiteaBundle.message("issue.list.loading")))
+        setRepositoryContent(JBPanelWithEmptyText().withEmptyText(GiteaBundle.message("toolwindow.loading")))
         if (mapping == null) return
 
         val childScope = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext.job))
@@ -103,7 +106,7 @@ class GiteaIssuesToolWindowPanel(private val project: Project) : JPanel(BorderLa
             if (client == null) {
                 setRepositoryContent(messagePanel(GiteaBundle.message("toolwindow.missing.token", mapping.account.toString())))
             } else {
-                setRepositoryContent(GiteaIssuesPanel(project, mapping, client, childScope))
+                setRepositoryContent(contentFactory(mapping, client, childScope))
             }
         }
     }
