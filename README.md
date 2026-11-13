@@ -97,22 +97,6 @@ The **Pull Requests** tab of the same tool window lists the pull requests of the
 After each fetch the plugin loads the branch protection rules of the Gitea remotes, so the IDE warns before pushing
 to a protected branch. Reading the rules needs admin permission on the repository.
 
-## Features Preview
-
-### Gitea Repo Clone
-
-| Features Preview                    | Features Preview                    | Features Preview |
-|-------------------------------------|-------------------------------------|------------------|
-| ![Features Preview](./assets/5.png) | ![Features Preview](./assets/6.png) |                  |
-
-### Task Management
-
-| Features Preview                    | Features Preview                    | Features Preview                    |
-|-------------------------------------|-------------------------------------|-------------------------------------|
-| ![Features Preview](./assets/0.png) | ![Features Preview](./assets/1.png) | ![Features Preview](./assets/2.png) |
-| ![Features Preview](./assets/3.png) | ![Features Preview](./assets/4.png) | ![Features Preview](./assets/7.png) |
-| ![Features Preview](./assets/8.png) |                                     |                                     |
-
 ## Installation
 
 - Using the IDE built-in plugin system:
