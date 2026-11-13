@@ -29,6 +29,74 @@ Gitea Plugin for Jetbrains IDEs.
 
 <!-- Plugin description end -->
 
+## Features
+
+Accounts are added under <kbd>Settings</kbd> > <kbd>Version Control</kbd> > <kbd>Gitea</kbd> with the server URL and
+an access token (see [Required permissions](#required-permissions)). The same page holds the clone options and the
+connection timeout.
+
+### Clone
+
+<kbd>File</kbd> > <kbd>New</kbd> > <kbd>Project from Version Control</kbd> > <kbd>Gitea</kbd> lists the repositories
+of your accounts, your own first. A repository URL can also be typed in the search field.
+
+- Clone over HTTPS or SSH. For repositories picked from the list the plugin uses the clone URLs provided by the
+  server, which already reflect its SSH domain, port and user; for URLs typed by hand the SSH port and user are taken
+  from the settings.
+- Self-signed certificates accepted in the IDE work too.
+- Git operations over HTTPS (fetch, pull, push) authenticate with the token of the matching Gitea account; with
+  several accounts for the same server the IDE asks which one to use.
+
+### Task management
+
+<kbd>Tools</kbd> > <kbd>Tasks & Contexts</kbd> > <kbd>Configure Servers...</kbd> > <kbd>Gitea</kbd> connects the IDE
+tasks to the issues of a repository.
+
+- Open an issue as task, also by number (`#12`), with "Include issues not assigned to me" and closed issues as options.
+- Track the time spent on the task and send it to the issue.
+- Change the state of the issue (open, closed) from the IDE.
+
+### Issues tool window
+
+The **Issues** tab of the **Gitea** tool window shows the issues of the Gitea repositories found among the git remotes
+of the project; with several repositories a selector appears on top.
+
+- Filters: state, text, label, milestone, "Assigned to me", "Created by me". Gitea searches whole words only;
+  `#12` opens issue 12 directly, ignoring the other filters.
+- Details: labels, milestone, assignees, branch, description and comments rendered by Gitea, so issue references and
+  mentions are links.
+- Comment (<kbd>Ctrl</kbd>+<kbd>Enter</kbd>), close or reopen (optionally with a comment), copy the link, open in the
+  browser, create a new issue with labels and "Assign to me".
+- **Start Working**: checks out a new branch named after the issue (`issue-12-fix-login-page`), sets it as reference of
+  the issue on Gitea and, when a Gitea task server is configured for the repository, activates the task.
+
+### Pull requests tool window
+
+The **Pull Requests** tab of the same tool window lists the pull requests of the repository.
+
+- Filters: state, "Created by me".
+- **Overview**: state (open, draft, merged, closed), source and target branches, mergeability, commit status checks,
+  latest review of each reviewer and pending review requests, labels, description and comments.
+- **Commits**: the commits of the pull request; double click opens one in the browser.
+- **Files**: the changed files in the IDE changes browser, with the IDE diff. The pull request head is fetched
+  (`refs/pull/<n>/head`) without creating branches.
+- **Review**: approve, request changes or comment. The review refers to the commit you have seen.
+- **Merge**: the merge styles allowed by the repository settings (merge, rebase, rebase and merge, squash,
+  fast-forward only), with their default, optional commit title and message, and deletion of the branch. A pull
+  request that received new commits after you opened it is not merged.
+- **Checkout**: a pull request from the same repository in its branch, tracking the remote one; a pull request from a
+  fork in `pr-<n>`.
+- Comment, close or reopen, open in the browser.
+- **New Pull Request** (toolbar): from the current branch into the default branch, changeable in the dialog. The branch
+  is pushed first when needed. For a branch created by "Start Working" the title is the issue title and the
+  description `Closes #<n>`, so merging closes the issue. An already open pull request for the branch is selected
+  instead of creating a new one.
+
+### Protected branches
+
+After each fetch the plugin loads the branch protection rules of the Gitea remotes, so the IDE warns before pushing
+to a protected branch. Reading the rules needs admin permission on the repository.
+
 ## Features Preview
 
 ### Gitea Repo Clone
